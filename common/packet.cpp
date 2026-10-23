@@ -1,7 +1,10 @@
 #include "packet.h"
 #include <cstdio>
 
-//체크섬   합으로 들어온데이터가 옳은지 판단
+// CS 계산 ADDR ~ DATA 합
+// 합으로 들어온데이터가 옳은지 판단
+// ADDR ~ DATA 합 계산 STX와 ETX는 동일하므로 제외
+// buf[start] ~ buf[end-1]까지 합산 후 그 값 반환 
 uint8_t CalcChecksum(const vector<uint8_t>& buf, size_t start, size_t end)
 {
     uint8_t sum = 0;
@@ -10,7 +13,10 @@ uint8_t CalcChecksum(const vector<uint8_t>& buf, size_t start, size_t end)
     return sum;
 }
 
-//패킷 생성
+// 패킷 생성  STX ~ ETX 바이트로 포장
+// 지정해 놓은  패킷 STX | ADDR | CMD | LEN | DATA | CS | ETX 순으로 push_back으로 만듦
+// ADDR, CMD, DATA만 받음 나머지는 고정 or 계산 가능
+// CS 계산은 CalcChecksum() 호출
 vector<uint8_t> MakePacket(uint8_t addr, uint8_t cmd, const vector<uint8_t>& data)
 {
     vector<uint8_t> pkt;
@@ -24,12 +30,14 @@ vector<uint8_t> MakePacket(uint8_t addr, uint8_t cmd, const vector<uint8_t>& dat
     return pkt;
 }
 
-// 패킷 해석하기
+// 패킷 해석 
 // 1) 길이/STX/LEN/ETX/체크섬 점검
 // 2) 통과하면 ADDR, CMD, DATA를 out에 담고 true
+// // out: 파싱 결과 상자 → OnPacket에서 명령(cmd) 판단할 때 사용
 bool ParsePacket(const vector<uint8_t>& pkt, Packet& out)
 {
     // 최소 길이:6바이트
+    //STX | ADDR | CMD | LEN | CS | ETX  == data가 없는 경우 최소
     if (pkt.size() < 6)
     {
         printf("[ERROR] Length too short\n");
@@ -50,6 +58,7 @@ bool ParsePacket(const vector<uint8_t>& pkt, Packet& out)
         // pass
     }
 
+    //길이가 같은지 점검
     uint8_t len = pkt[3];
     if (pkt.size() != 6u + len)
     {
@@ -71,6 +80,8 @@ bool ParsePacket(const vector<uint8_t>& pkt, Packet& out)
         //pass
     }
 
+
+    //cs: 직접 계산 pkt[4 + len] : 수신한 체크섬
     uint8_t cs = CalcChecksum(pkt, 1, 4 + len);
     if (cs != pkt[4 + len])
     {
@@ -82,6 +93,8 @@ bool ParsePacket(const vector<uint8_t>& pkt, Packet& out)
         //pass
     }
 
+    //저장의 이유? : out은 점검을 모두 통과한 애들만 쓰기 위해 사용
+    //
     out.addr = pkt[1];
     out.cmd = pkt[2];
     out.data.assign(pkt.begin() + 4, pkt.begin() + 4 + len);
@@ -99,39 +112,49 @@ void PrintHex(const char* title, const vector<uint8_t>& buf)
 vector<uint8_t> rxBuf;
 
 //데이터 끊겨들어올때 처리 방안
+//데이터 조각을 모아 패킷 단위로 자름
+//데이터가 잘못 들어와도 패킷 단위로 찾을 수 있게 도와줌
 void OnReceive(const vector<uint8_t>& chunk)
 {
     PrintHex("RX chunk", chunk);
+    //끊겨서 들어올수 있으니 오는 족족 rxBuf에 붙임 (한줄)
     rxBuf.insert(rxBuf.end(), chunk.begin(), chunk.end());
 
     while (true)
     {
         // 1) STX 찾기: 앞에 붙은 쓰레기 제거
         while (!rxBuf.empty() && rxBuf[0] != STX)
-            rxBuf.erase(rxBuf.begin());
+            rxBuf.erase(rxBuf.begin()); //erase 제거 함수
 
         // 2) LEN까지(4바이트) 안 왔으면 다음 조각 기다림
-        if (rxBuf.size() < 4)
+        if (rxBuf.size() < 4) //최소 4바이트: STX | ADDR | CMD | LEN 
             return;
 
         // 3) 패킷 전체 길이만큼 안 왔으면 다음 조각 기다림
-        size_t total = 6u + rxBuf[3];
+        size_t total = 6u + rxBuf[3]; // LEN + 6(STX,ADDR,CMD,LEN,CS,ETX) 
+                                    //데이터의 길이를 더해 리얼 패킷 길이 통과 위한 기다림
         if (rxBuf.size() < total)
             return;
 
         // 4) 패킷 하나 잘라서 검사
+        // 처음 -> total까지 자른다. (total: 6 + LEN)  
+        // 그 하나가  하나의 패킷인지 보기 위해
         vector<uint8_t> pkt(rxBuf.begin(), rxBuf.begin() + total);
         Packet p;
+
+        //만들어진 패킷 정상 해석 (점검)
         if (ParsePacket(pkt, p))
         {
             printf("  -> Packet OK: ADDR=%02X CMD=%02X LEN=%zu\n", p.addr, p.cmd, p.data.size());
             PrintHex("     DATA", p.data);
-            OnPacket(p);                                          // ← 추가: 완성된 패킷 처리
+            OnPacket(p);                                         
             rxBuf.erase(rxBuf.begin(), rxBuf.begin() + total);   // 처리한 만큼 버퍼에서 삭제
         }
         else
         {
-            rxBuf.erase(rxBuf.begin());   // 깨진 패킷: STX 1바이트만 버리고 다시 찾기
+            rxBuf.erase(rxBuf.begin());   // 해석에 통과하지 못하면 
+                                          // 깨진 패킷: STX 1바이트만 버리고 다시 찾기
         }
     }
 }
+
