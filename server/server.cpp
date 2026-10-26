@@ -10,6 +10,7 @@
 
 static int g_fd = -1;    // 지금 연결된 클라이언트
 
+
 // 검사 통과한 패킷의 명령(cmd)가 BIT점검과 동일한 지 체크 
 void OnPacket(const Packet& p)
 {
@@ -17,7 +18,7 @@ void OnPacket(const Packet& p)
     if (p.cmd == CMD_BIT) // BIT 점검 명령
     {
         //이미 옳다고 점검 끝낸 후라 전송  해당 패킷 잘 왔다고 응답
-        vector<uint8_t> resp = MakePacket(ADDR_BRD, CMD_BIT, {0x00});  
+        vector<uint8_t> resp = MakePacket(ADDR_BRD, CMD_BIT, p.data);  
         send(g_fd, resp.data(), resp.size(), 0);
         PrintHex("TX", resp);
         printf("[서버] BIT 응답 전송 (정상)\n");
