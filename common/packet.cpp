@@ -116,7 +116,7 @@ vector<uint8_t> rxBuf;
 //데이터가 잘못 들어와도 패킷 단위로 찾을 수 있게 도와줌
 void OnReceive(const vector<uint8_t>& chunk)
 {
-    PrintHex("RX chunk", chunk);
+    PrintHex("RX ", chunk);
     //끊겨서 들어올수 있으니 오는 족족 rxBuf에 붙임 (한줄)
     rxBuf.insert(rxBuf.end(), chunk.begin(), chunk.end());
 
