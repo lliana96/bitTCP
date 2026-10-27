@@ -15,7 +15,7 @@ uint8_t CalcChecksum(const vector<uint8_t>& buf, size_t start, size_t end)
 
 // 패킷 생성  STX ~ ETX 바이트로 포장
 // 지정해 놓은  패킷 STX | ADDR | CMD | LEN | DATA | CS | ETX 순으로 push_back으로 만듦
-// ADDR, CMD, DATA만 받음 나머지는 고정 or 계산 가능
+
 // CS 계산은 CalcChecksum() 호출
 vector<uint8_t> MakePacket(uint8_t addr, uint8_t cmd, const vector<uint8_t>& data)
 {
@@ -95,9 +95,13 @@ bool ParsePacket(const vector<uint8_t>& pkt, Packet& out)
 
     //저장의 이유? : out은 점검을 모두 통과한 애들만 쓰기 위해 사용
     //
+    out.stx  = pkt[0];
     out.addr = pkt[1];
-    out.cmd = pkt[2];
+    out.cmd  = pkt[2];
+    out.len  = len;
     out.data.assign(pkt.begin() + 4, pkt.begin() + 4 + len);
+    out.cs   = pkt[4 + len];
+    out.etx  = pkt.back();
     return true;
 }
 
