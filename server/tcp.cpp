@@ -13,7 +13,6 @@ int TcpServerOpen(int port)
     //TCP : SOCK_STREAM  
     int sock = socket(AF_INET, SOCK_STREAM, 0);
 
-    // 소켓 생성 실패 시 -1 반환 -> main에서 프로그램 졸료
     if (sock < 0)
     {
         perror("socket");   // perror : 실패 이유까지 출력

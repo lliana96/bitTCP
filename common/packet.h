@@ -31,26 +31,21 @@ struct Packet
     uint8_t etx;            //  ETX(03)
 };
 
-// CS 계산 ADDR ~ DATA 합
-uint8_t CalcChecksum(const vector<uint8_t>& buf, size_t start, size_t end);
-
-// 패킷 생성 
-// STX ~ ETX 구조로 포장 
-// 끊겨서 들어오거나 하는 것을 대비하여 02시작 03끝 하나의 패킷 생성  
+// 보낼 내용을 규칙대로 패킷으로 생성
 vector<uint8_t> MakePacket(uint8_t addr, uint8_t cmd, const vector<uint8_t>& data);
 
-// 패킷 검사
-// 검사 통과하면 out에 칸 전부 담음
+// 1. 받은 패킷이 규칙에 맞는지 확인
+// 2. 규칙에 어긋나지 않는 경우 내용을 꺼내는 기능도 포함
 bool ParsePacket(const vector<uint8_t>& pkt, Packet& out);
 
-// 16진수 표현
+// 주고받은 패킷을 눈으로 확인하기 위해 사용
 void PrintHex(const char* title, const vector<uint8_t>& buf);
 
-// 데이터 끊겨들어올때 처리 방안
-// 데이터 조각을 모아 패킷 단위로 자름
+// 들어온 패킷을 검사하여 알맞는 패킷으로 나눔 
 void OnReceive(const vector<uint8_t>& chunk);
 
-// 완성된 패킷 처리 (서버/클라이언트가 각자 만듦)
+// 완성된 패킷이 수행할 활동을 함수로 표현 
 void OnPacket(const Packet& p);
 
+// 받은 데이터 모아두는 바구니
 extern vector<uint8_t> rxBuf;
