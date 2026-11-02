@@ -5,25 +5,30 @@
 #include <mutex>
 #include <chrono>
 #include <sys/socket.h>
+#include  "fake.h" //가짜 점검용
 
-// main CBITㅔ드 둘다 사용하므로 
-//동시에 써도 안전한 int 사용 
+// main CBIT스레드 둘다 사용하므로 
+// 동시에 써도 안전한 atomic 사용 
 atomic<int> g_client_fd{-1};
 
 // IBIT 결과 저장 (main만 사용)
 static bool g_ibit_result = true;
 
 // CBIT 결과 저장 
-// CBIT 스레드로 저장되지만 main이 client에 요청에 따라 보낼 때 읽기 때문에 atomic
+// CBIT 스레드로 저장되지만 main이 
+// client에 요청에 따라 보낼 때 읽기 때문에 atomic
 static atomic<bool> g_cbit_result{true};
 
 // main과 CBIT 스레드가 동시에 보내면 패킷이 섞임
 // 뮤텍스로 lock
 static mutex g_send_lock;
 
+
+
+
 // 결과 전송
 // bitcheck 통해 만들어지 data를 포함한 packet 생성
-// 저장된 data [I][R][S][C] 4칸으로 client에게 보내기 위한 것
+// 저장된 data [어떤 BIT][결과] 2칸으로 client에게 보내기 위한 것
 // client가 요청할 때 전체 결과를 출력하여 최근 pass,fail을 표현하기 위함  
 // 이는 client가 호출시 동작한다 그때 CBIT출력과 겹치면 패킷이 손상되어 출력되기 때문에
 // 이 함수가 끝날때 까지 CBIT 출력은 대기하기 위해 뮤텍스 사용 
@@ -52,6 +57,9 @@ static void SendBit(const vector<uint8_t>& data)
 void IbitRun()
 {
     g_ibit_result = true; //알맞는 점검 기능 생길시 삽입 일단은 true로 연결 체크
+
+    // g_ibit_result = I_Fake();  //가짜 점검
+
     printf("[IBIT] %s\n", g_ibit_result ? "PASS" : "FAIL");
 }
 
@@ -65,28 +73,40 @@ static void CbitThread()
     this_thread::sleep_for(chrono::seconds(1));   // sleep_for : 잠깐 쉬기
 
     int  count  = 0;
-    bool lastOk = true;   // 바로 전 결과 (상태가 바뀌었는지 보기 위한 것)
-
+    int failcount = 0;   // fail이 연속으로 몇 번 나왔는지 확인하기 위한 것
     while (true)
     {
         this_thread::sleep_for(chrono::seconds(2));
 
-        // 테스트용 가짜 고장 : 5번째마다 FAIL
-        bool ok = (count % 5 != 4);
-        g_cbit_result = ok;
-        printf("[CBIT] #%d %s\n", count, ok ? "PASS" : "FAIL");
+        // bool ok = true;
 
-        // 방금 FAIL시 바로 client 알림
-        if (!ok && lastOk)
+        bool ok = C_Fake(count); //가짜 점검       
+
+        if (ok)
         {
-            SendBit({0x00, 0x00, 0x00, 0x00});
+            failcount =0;
+            printf("[CBIT] #%d pass\n", count);
         }
         else
         {
-            //pass
+            failcount++;
+            printf("[CBIT] #%d FAIL (%d in a row)\n", count, failcount);
         }
 
-        lastOk = ok;
+        //연속 5번 일시 고장 판단 -> break
+        if (failcount >= 5)
+        {
+                g_cbit_result = false;  
+                SendBit({CBIT, 0x00});
+                printf("[CBIT] FAIL 5 in a row → stop\n");
+                break;
+        }
+        else 
+        {
+               //pass
+        
+        }
+
         count++;
     }
 }
@@ -102,35 +122,56 @@ void CbitStart()
 }
 
 
+// 운용자가 고장 조치 후 CBIT를 다시 시작 (client 요청)
+// 이미 돌고 있으면 또 띄우지 않음 (CBIT 두 개가 동시에 돌면 안 되니까)
+// 끝나면 지금 CBIT 상태를 client에게 알려줌
+static void CbitRestart()
+{
+    if (g_cbit_result)
+    {
+        // pass로 돌고 있는데 동작을 재 요청하는 경우 
+        // print로 알리고 기존 동작 유지 
+        printf("[CBIT] already running\n");
+    }
+    else
+    {
+        // fail 이후 재시작 요청
+        // 고장 기록 지우고 PASS로 다시 시작
+        g_cbit_result = true;   
+        printf("[CBIT] restart\n");
+        CbitStart();
+    }
+
+    SendBit({CBIT, (uint8_t)(g_cbit_result ? 0x01 : 0x00)});
+}
+
+
 // client가 물어본 BIT의 저장된 결과를 알려주기 위함
 void BitCheck(uint8_t sel)
-{                      //    I     R     S     C
-    vector<uint8_t> data = {0x00, 0x00, 0x00, 0x00};
+{                      //  BIT  결과
+    vector<uint8_t> data = {sel, 0x00};
 
-    if (sel & IBIT)              
+    if (sel == IBIT)
     {
-        data[0] = g_ibit_result ? 0x01 : 0x00;
-    }
-    else
-    {
-        //pass
-    }
-
-    if (sel & CBIT)
-    {
-        data[3] = g_cbit_result ? 0x01 : 0x00;
-    }
-    else
-    {
-        //pass
-    }
-
-    if (sel & (IBIT | CBIT))
-    {
+        data[1] = g_ibit_result ? 0x01 : 0x00;
         SendBit(data);
+        printf("[Server] IBIT %s\n", g_ibit_result ? "PASS" : "FAIL");
     }
+    else if (sel == CBIT)
+    {
+        data[1] = g_cbit_result ? 0x01 : 0x00;
+        SendBit(data);
+        printf("[Server] CBIT %s\n", g_cbit_result ? "PASS" : "FAIL");
+    }
+     else if (sel ==CBIT_RESTART)
+     {
+        CbitRestart();
+     }
     else
     {
         printf("[Server] unsupported BIT %02X\n", sel);
     }
 }
+
+
+

@@ -17,6 +17,8 @@ const uint8_t RBIT = 0x02;   // 02 RBIT
 const uint8_t SBIT = 0x04;   // 04 SBIT
 const uint8_t CBIT = 0x08;   // 08 CBIT
 
+const uint8_t CBIT_RESTART = 0x10; //10 fail 이후 재시작 위함
+
 
 // 패킷 구조체
 //  STX | ADDR | CMD | LEN | DATA | CS | ETX
