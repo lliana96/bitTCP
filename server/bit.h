@@ -1,19 +1,22 @@
 #pragma once
 #include <atomic>
 #include <cstdint>
+#include <vector>
 using namespace std;
 
-// 결과·FAIL을 보낼 client (-1 = 없음, main이 접속/끊김 때 바꿈)
-extern atomic<int> g_client_fd;
+//요청오기 전까지 저장
+//요청시 꺼내서 줄 변수
+extern atomic<int>  g_client_fd;     // 결과를 보낼 client (-1 = 없음)
 
-// 켤 때 IBIT 검사 (main에서 한 번 부름)
-void IbitRun();
+extern atomic<bool> g_cbit_result;   // CBIT 결과 
+extern atomic<int>  g_sbit_result;   // SBIT 마지막 결과 
 
 
-// CBIT
-// IBIT가 끝나고 1초후 장비가 켜져있는 동안 계속 상태를 지켜보기 위한 것
-// CBIT 2초마다 수행될때 마다 main도 동작되어야하기 때문에 스레드로 진행
-void CbitStart();
+// [어떤 BIT][결과] 2칸을 client에게 보냄 (main, CBIT, SBIT가 같이 씀)
+void SendBit(const vector<uint8_t>& data);
 
-// client가 물어본 BIT의 저장된 결과를 알려주려고
-void BitCheck(uint8_t sel);
+// CBIT 스레드: 2초마다 점검, 연속 5번 FAIL이면 알리고 멈춤
+void CbitThread();
+
+// SBIT 스레드: 60초 점검 (그동안 CBIT 멈춤), 끝나면 결과 보냄
+void SbitThread();

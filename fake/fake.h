@@ -1,9 +1,9 @@
 #pragma once
 
 // ===== 디버깅용 가짜 점검 =====
+// 실제 점검 기능이 생기면 이 함수들 대신 진짜 점검 함수를 쓰면 됨
 
-// 가짜 IBIT 결과 (true = PASS)
 bool I_Fake();
-
-// 가짜 CBIT 결과 (count = 몇 번째 점검인지, true = PASS)
 bool C_Fake(int count);
+bool S_Fake();
+bool R_Fake();
