@@ -14,16 +14,16 @@ int main()
     
    // 실제 점검 생기면 교체 
     printf("\n");
+    printf("[IBIT] start\n");
     bool ibit_result = I_Fake();   // 가짜 점검   
-    printf("[IBIT] %s\n", ibit_result ? "PASS" : "FAIL");
-
+    printf(" -> IBIT %s\n",  ibit_result ? "PASS" : "FAIL");
     printf("\n\n");
 
     //2. CBIT 시작 (계속, 따로 스레드)
     //IBIT 끝나고 CBIT 시작까지 1초 쉬고, 그 뒤로 2초마다 점검
     //cbit 동작하는 동시에 MAIN동작
-    thread cbit(CbitThread);   // thread : 함수를 따로 돌리기 시작
-    cbit.detach();             // detach : 끝날 때까지 안 기다림
+    thread cbit(CbitThread);   
+    cbit.detach();             
     printf("[CBIT] start\n");
 
 
@@ -100,23 +100,20 @@ int main()
                 switch (p.data[0])
                 {
                     case IBIT:
-                        {// 켤 때 저장해 둔 결과 보내기
+                        {// 켤 때 저장해 둔 결과 전송
                         SendBit({IBIT, (uint8_t)(ibit_result ? 0x01 : 0x00)});
-                        printf("[IBIT] sent: %s\n", ibit_result ? "PASS" : "FAIL");
                         break;
                     }
 
                     case CBIT:
-                       { // CBIT 스레드가 저장해 둔 결과 보내기
+                       { // CBIT 스레드가 저장해 둔 결과 전송
                         SendBit({CBIT, (uint8_t)(g_cbit_result ? 0x01 : 0x00)});
-                        printf("[CBIT] sent: %s\n", g_cbit_result ? "PASS" : "FAIL");
                         break;
                     }
 
                     case SBIT:
                      {   // 60초 걸리니까 따로 돌림
-                        // (결과는 SBIT 스레드가 끝날 때 보내고 저장함)
-                        printf("[SBIT] request\n");
+                        // (결과는 SBIT 스레드가 끝날 때 보내고 저장)
                         thread sbit(SbitThread);
                         sbit.detach();
                         break;
@@ -124,9 +121,8 @@ int main()
 
                     case RBIT:
                     {
-                        bool rbit_result= R_Fake();  // 가짜 점검
-                        SendBit({RBIT, (uint8_t)(rbit_result  ? 0x01 : 0x00)});
-                        printf("[RBIT] %s\n", rbit_result  ? "PASS" : "FAIL");
+                        rbit_result = R_Fake();                  // 가짜 점검 (PASS=1, FAIL=0 으로 저장됨)
+                        SendBit({RBIT, (uint8_t)rbit_result});
                         break;
                     }
                     
@@ -135,9 +131,9 @@ int main()
                     {
                         // 새로 점검하지 않고, 저장된 결과를 전부 보냄
                         SendBit({IBIT, (uint8_t)(ibit_result ? 0x01 : 0x00)});
+                        SendBit({RBIT, (uint8_t)(rbit_result  == 1 ? 0x01 : 0x00)});
+                        SendBit({SBIT, (uint8_t)(g_sbit_result == 1 ? 0x01 : 0x00)});
                         SendBit({CBIT, (uint8_t)(g_cbit_result ? 0x01 : 0x00)});
-                        SendBit({RBIT, (uint8_t)(rbit_result  ? 0x01 : 0x00)});
-                        SendBit({SBIT, (uint8_t)(g_sbit_result ? 0x01 : 0x00)});
 
                         
                         break;
@@ -168,7 +164,7 @@ int main()
             }
         }
 
+        g_client_fd = -1;   // client 끊김 
         close(fd);
-        g_client_fd = -1;   // client 나감
     }
 }

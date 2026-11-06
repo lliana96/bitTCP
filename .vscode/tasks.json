@@ -1,0 +1,27 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build server",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "server.cpp", "tcp.cpp", "bit.cpp",
+                "../fake/fake.cpp", "../common/packet.cpp",
+                "-I../common", "-I../fake",
+                "-pthread",
+                "-o", "server"
+            ],
+            "options": { "cwd": "${workspaceFolder}/server" },
+            "problemMatcher": []
+        },
+        {
+            "label": "run server",
+            "type": "shell",
+            "command": "./server",
+            "options": { "cwd": "${workspaceFolder}/server" },
+            "group": { "kind": "build", "isDefault": true },
+            "dependsOn": "build server"
+        }
+    ]
+}
