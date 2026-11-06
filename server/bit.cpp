@@ -36,7 +36,7 @@ void SendBit(const vector<uint8_t>& data)
         //pass
     }
 
-    vector<uint8_t> pkt = MakePacket(ADDR, CMD_BIT, data);
+    vector<uint8_t> pkt = MakePacket(CMD_BIT, data);
 
     lock_guard<mutex> lock(g_send_lock);              // lock_guard : 이 블록 끝날 때까지 잠금
     
