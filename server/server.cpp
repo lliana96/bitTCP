@@ -15,9 +15,18 @@ int main()
    // 실제 점검 생기면 교체 
     printf("\n");
     printf("[IBIT] start\n");
-    bool ibit_result = I_Fake();   // 가짜 점검   
-    printf(" -> IBIT %s\n",  ibit_result ? "PASS" : "FAIL");
-    printf("\n\n");
+    bool ibit_result = I_Fake();   // 가짜 점검
+    
+    if(ibit_result == 1)
+    {
+        printf("-> IBIT pass\n\n");
+    }
+    else
+    {
+        printf("-> IBIT fail\n\n");
+    }
+
+
 
     //2. CBIT 시작 (계속, 따로 스레드)
     //IBIT 끝나고 CBIT 시작까지 1초 쉬고, 그 뒤로 2초마다 점검
@@ -101,13 +110,27 @@ int main()
                 {
                     case IBIT:
                         {// 켤 때 저장해 둔 결과 전송
-                        SendBit({IBIT, (uint8_t)(ibit_result ? 0x01 : 0x00)});
+                         if(ibit_result ==1)
+                        {
+                            SendBit({IBIT, 0x01});
+                        }
+                        else
+                        {
+                            SendBit({IBIT, 0x00});
+                        }
                         break;
                     }
 
                     case CBIT:
                        { // CBIT 스레드가 저장해 둔 결과 전송
-                        SendBit({CBIT, (uint8_t)(g_cbit_result ? 0x01 : 0x00)});
+                        if(g_cbit_result ==1)
+                        {
+                            SendBit({CBIT, 0x01});
+                        }
+                        else
+                        {
+                            SendBit({CBIT, 0x00});
+                        }
                         break;
                     }
 
@@ -122,7 +145,15 @@ int main()
                     case RBIT:
                     {
                         rbit_result = R_Fake();                  // 가짜 점검 (PASS=1, FAIL=0 으로 저장됨)
-                        SendBit({RBIT, (uint8_t)rbit_result});
+                        if(rbit_result == 1)
+                        {
+                            SendBit({RBIT, 0x01});
+                        }
+                        else
+                        {
+                            SendBit({RBIT, 0x00});
+                        }
+                       
                         break;
                     }
                     
@@ -130,12 +161,19 @@ int main()
                     case BIT_ALL:
                     {
                         // 새로 점검하지 않고, 저장된 결과를 전부 보냄
-                        SendBit({IBIT, (uint8_t)(ibit_result ? 0x01 : 0x00)});
-                        SendBit({RBIT, (uint8_t)(rbit_result  == 1 ? 0x01 : 0x00)});
-                        SendBit({SBIT, (uint8_t)(g_sbit_result == 1 ? 0x01 : 0x00)});
-                        SendBit({CBIT, (uint8_t)(g_cbit_result ? 0x01 : 0x00)});
-
-                        
+                        uint8_t bits[4] = {IBIT, RBIT, SBIT, CBIT};
+                        int results[4] = {ibit_result, rbit_result, g_sbit_result, g_cbit_result};
+                        for (int i = 0; i < 4; i++)
+                        {
+                            if (results[i] == 1)
+                            {
+                                SendBit({bits[i], 0x01});
+                            }
+                            else
+                            {
+                                SendBit({bits[i], 0x00});
+                            }
+                        }
                         break;
                     }
 

@@ -55,7 +55,15 @@ void SendBit(const vector<uint8_t>& data)
         case CBIT: name = "CBIT";  break;
         default:   name = "BIT ?"; break;
     }
-    printf(" -> %s %s\n\n", name, (data[1] == 0x01) ? "PASS" : "FAIL");
+
+    if(data[1] == 0x01)
+    {
+        printf("-> %s pass\n\n", name);
+    }
+    else
+    {
+        printf("-> %s fail\n\n", name);
+    }
 
 }
 
